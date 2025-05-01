@@ -1,0 +1,64 @@
+#-------------------------------------------------------------------------------
+load_library extract
+lib::SetInfoDef 1
+#turn on the extended information mode to utilize more data
+#-------------------------------------------------------------------------------
+set N @node@
+set color_list [list green blue red orange magenta violet]
+set color_length [llength $color_list]
+set h @node:index@
+set color [lindex $color_list [expr $h%$color_length]]
+
+#-------------------------------------------------------------------------------
+# load data
+load_file IdVd_@plot@ -name PLT_Lin($N)
+load_file experiment_IdVd.plt -name PLT_Experiment@Vg@
+#-------------------------------------------------------------------------------
+
+#-------------------------------------------------------------------------------
+# canvas setting
+if {[lsearch [list_plots] Plot_IdVd] == -1} {
+    create_plot -1d -name Plot_IdVd
+    set_plot_prop -title "I<sub>d</sub>-V<sub>d</sub> Curve" -title_font_size 20
+    
+    set_axis_prop -plot Plot_IdVd -axis x -min -0.1 -min_fixed
+    set_axis_prop -plot Plot_IdVd -axis x -max 3.1 -max_fixed
+    set_axis_prop -plot Plot_IdVd -axis y -min 1e-9 -min_fixed
+    set_axis_prop -axis x -title {Drain Voltage [V]} \
+        -title_font_size 16 -label_font_size 14 -type linear
+    set_axis_prop -axis y -title {Drain Current [A/<greek>m</greek>m]} \
+        -title_font_size 16 -label_font_size 14 -type log
+    set_legend_prop -plot Plot_IdVd -label_font_family arial -label_font_size 16 \
+        -label_font_color #000000 -label_font_att bold
+    set_legend_prop -plot Plot_IdVd -position {0.75316 0.653789}
+    set_legend_prop -plot Plot_IdVd -color_fg #ffffff
+}
+select_plots Plot_IdVd
+
+#-------------------------------------------------------------------------------
+# plot simulation
+set Vd_simu [get_variable_data "drain OuterVoltage" -dataset PLT_Lin($N)]
+set Id_simu [get_variable_data "drain TotalCurrent" -dataset PLT_Lin($N)]
+
+ext::AbsList -out absId_simu -x $Id_simu
+create_variable -name absId_simu@node@ -dataset PLT_Lin($N) -values $absId_simu
+
+create_curve -name IdVd_simu@node@ -dataset PLT_Lin($N) \
+	-axisX "drain OuterVoltage" -axisY "drain TotalCurrent"
+set_curve_prop IdVd_simu@node@ -label "Simu Vg=@Vg@ V" \
+	-color $color -hide_line -markers_type circle -markers_size 30 -line_width 6
+#-------------------------------------------------------------------------------
+
+#-------------------------------------------------------------------------------
+# plot experiment
+set Vd_exp [get_variable_data "Vd@Vg@" -dataset PLT_Experiment@Vg@]
+set Id_exp [get_variable_data "Id@Vg@" -dataset PLT_Experiment@Vg@]
+
+ext::AbsList -out absId_exp -x $Id_exp
+create_variable -name absId_exp_@Vg@ -dataset PLT_Experiment@Vg@ -values $absId_exp
+
+create_curve -name IdVd_exp_@Vg@ -dataset PLT_Experiment@Vg@ \
+	-axisX "Vd@Vg@" -axisY "absId_exp_@Vg@"
+set_curve_prop IdVd_exp_@Vg@ -label "Exp Vg=@Vg@ V" \
+	-color $color -markers_type plus -markers_size 30 -line_width 6
+#-------------------------------------------------------------------------------

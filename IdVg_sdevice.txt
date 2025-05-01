@@ -1,0 +1,185 @@
+File {
+  Grid="@tdr@"
+  Parameter= "@parameter@"
+  Current= "@plot@"
+  Plot= "@tdrdat@"
+  Output= "@log@"
+  NewtonPlot= "n@node@_Newton_%d_des.tdr"
+}
+Electrode {
+  { Name="gate"   Voltage= 0 Schottky Workfunction=4.8 }
+  { Name="drain"  Voltage= 0 Schottky Workfunction=@Workfunction@ Resist=@resistance@}
+  { Name="source" Voltage= 0 Schottky Workfunction=@Workfunction@ Resist=@resistance@}
+}
+
+Physics{
+	Fermi
+	Temperature=300
+	eQuantumPotential 
+	EffectiveIntrinsicDensity(BandGapNarrowing(oldSlotboom))
+	Mobility(
+	  DopingDependence(PhuMob BalMob(Lch= 20))
+	  Enormal(Lombardi InterfaceCharge)
+	  HighFieldSaturation  
+	  Thinlayer
+      )
+  Recombination (
+    SRH  (DopingDependence)
+    #Auger 
+  #if [string match "yes" "@tunneling@"]
+  	Band2Band (Model= Nonlocalpath)
+  #endif
+  )
+  
+  eBarrierTunneling "SourceNLM"
+  # nonLocal Barrier tunneling
+  eBarrierTunneling "DrainNLM"
+}
+
+#if [string match "no" "@Con_InterfaceTrap@"]
+	Physics (Region="R.ch") {
+		Traps(
+		(Donor Exponential	fromCondBand	Conc=@Donor_CB@ EnergyMid=0	EnergySig=0.05)
+		(Donor Gaussian		fromMidBandGap	Conc=@Donor_Deep@ EnergyMid=0.08 EnergySig=0.08)
+		#(Acceptor Exponential	fromCondBand	Conc=1e19 EnergyMid=0	EnergySig=0.05
+		#eXsection=5e-15 hXsection=5e-15 PooleFrenkel)
+		)	
+	}
+#else
+	Physics (Region="R.ch") {
+			Traps(
+			(Donor 		Exponential		fromCondBand	Conc=@Donor_CB@ 	EnergyMid=0		EnergySig=0.05)
+			(Donor 		Gaussian		fromMidBandGap	Conc=1e19 	EnergyMid=0.08 	EnergySig=0.08)
+			(Acceptor 	Exponential		fromValBand		Conc=@Acceptor_VB@ 	EnergyMid=1		EnergySig=0.05)
+			)	
+	}
+	Physics (MaterialInterface="MoS2/AluminumOxide" ) { 
+		#-- Fixed charge & shallow acceptor traps @ a-Si/SiNx interface
+		  Traps( 
+			(Donor Exponential fromCondBand Conc=@Con_InterfaceTrap@ EnergyMid=0 EnergySig=0.05
+			eXsection=1e-14 hXsection=1e-14 PooleFrenkel)
+			(Donor 		Gaussian		fromCondBand	Conc=@Donor_Deep@ 	EnergyMid=0.6 	EnergySig=0.08)
+			(Acceptor 	Exponential		fromValBand		Conc=1e12 	EnergyMid=1		EnergySig=0.05)
+		  )
+		}
+#endif
+
+Plot {
+  Potential Doping SpaceCharge
+  eDensity hDensity
+  eMobility hMobility
+  ConductionCurrent DisplacementCurrent
+  eCurrent/Vector hCurrent/Vector Current/Vector 
+  CurrentPotential
+  ElectricField/Vector
+  eQuasiFermi hQuasiFermi 
+  BandGap Affinity ConductionBand ValenceBand   
+  SRH eBand2BandGeneration hBand2BandGeneration Band2BandGeneration   	
+  eTrappedCharge hTrappedCharge
+  eInterfaceTrappedCharge hInterfaceTrappedCharge
+  TotalInterfaceTrapConcentration
+  eGapStatesRecombination 	hGapStatesRecombination
+  eBarrierTunneling
+  NonLocal
+}
+
+Math {
+	NonLocal "SourceNLM" (
+    Electrode="source"
+	Digits= 5
+	Length= 3e-7
+	EnergyResolution= 1e-3
+    )	
+    
+    NonLocal "DrainNLM"  (
+    Electrode="drain"
+	Digits= 5
+	Length= 3e-7
+	EnergyResolution= 1e-3
+	)
+	
+	Extrapolate
+	Notdamped=50
+	Iterations=50
+    -checkundefinedmodels
+    ExitOnFailure
+    NewtonPlot (Error MinError Residual)
+}
+
+#if [string match "yes" "@hole@"]
+	#define Hole Hole
+#else 
+	#define Hole
+#endif
+
+
+#if [string match "no" "@transient@"]
+Solve {
+  Coupled(Iterations=1000) { Poisson }
+  Quasistationary ( 
+    InitialStep= 1e-9 Increment= 1.41
+    MinStep= 1e-10     MaxStep= 0.02
+    Goal { Name="drain" Voltage= 0.25 }
+  ){ Coupled (Iterations=1000) {  Poisson Electron Hole eQuantumPotential} }
+	#if 0
+		Quasistationary ( 
+			InitialStep= 1e-4 Increment= 1.41
+			MinStep= 1e-10     MaxStep= 0.02
+			Goal { Name="gate" Voltage= -1 }
+		  ){ Coupled {  Poisson Electron Hole eQuantumPotential} }
+		  
+		  Quasistationary ( 
+			InitialStep= 1e-4 Increment= 1.41
+			MinStep= 1e-10     MaxStep= 0.02
+			Goal { Name="gate" Voltage= -2 }
+		  ){ Coupled {  Poisson Electron Hole eQuantumPotential} }
+	#endif
+		
+	NewCurrentFile= "IdVg_"
+	  Quasistationary ( 
+		InitialStep= 1e-4 Increment= 1.41
+		MinStep= 1e-10     MaxStep= 0.02
+		Goal { Name="gate" Voltage= @Start_Vg@ }
+	  ){ Coupled {  Poisson Electron Hole eQuantumPotential} }
+
+	  
+
+    Quasistationary (
+    	DoZero
+		InitialStep= 1e-4 Increment= 1.41
+		MinStep= 1e-10     MaxStep= 0.02
+		Goal { Name="gate" Voltage= 4}
+	  ){ Coupled {  Poisson Electron Hole eQuantumPotential} }
+}
+
+#else
+Solve {
+	Coupled(Iterations= 1000 LinesearchDamping= 1e-2) {Poisson}
+	Coupled(Iterations= 1000 LinesearchDamping= 1e-2) {Poisson Electron eQuantumPotential}
+	
+	Transient(
+		InitialStep= 1e-4 Minstep= 1e-8 MaxStep= 0.02
+		Goal{Name="drain" Voltage= 0.25}
+	  ) { Coupled {Poisson Electron eQuantumPotential } 
+		  Plot (FilePrefix="n@node@_ini_drain" Time= (1.) NoOverwrite )
+		}
+		
+	Transient(
+	InitialStep= 1e-4 Minstep= 1e-8 MaxStep= 0.02
+	Goal{Name="gate" Voltage= @Start_Vg@}
+  ) { Coupled {Poisson Hole Electron eQuantumPotential } 
+	  Plot (FilePrefix="n@node@_ini_gate" Time= (1.) NoOverwrite )
+	}
+	
+	NewCurrentFile= "IdVg_"
+	
+	Transient(
+	InitialStep= 1e-7 Minstep= 1e-8 MaxStep= 0.02 Increment= 1.41
+	Goal{Name="gate" Voltage= 4}
+  ) { Coupled {Poisson Hole Electron eQuantumPotential } 
+	  CurrentPlot (Time=(Range=(0. 1000.) Intervals=100))
+	}
+	
+}
+
+#endif

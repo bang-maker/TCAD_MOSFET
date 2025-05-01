@@ -1,0 +1,72 @@
+#setdep @previous@
+
+#-----------------------------------------
+load_library extract
+lib::SetInfoDef 1
+#turn on the extended information mode to utilize more data
+#------------------------------------------
+
+set	N	@node@
+set Io	[expr 1e-10]
+
+#-----------------------------------------------------------
+# load data
+load_file IdVg_@plot@ -name PLT_Lin($N)
+load_file experimental.plt -name PLT_Experiment($N)
+#--------------------------------------------------------------
+
+#-------------------------------------------------------------------------------
+# canvas setting
+if {[lsearch [list_plots] Plot_IdVg] == -1} {
+	create_plot -1d -name Plot_IdVg
+	set_plot_prop -title "I<sub>d</sub>-V<sub>gs</sub> Curve" -title_font_size 20
+	
+	set_axis_prop -plot Plot_IdVg -axis x -min 0 -min_fixed
+	set_axis_prop -plot Plot_IdVg -axis x -max 4 -max_fixed
+	set_axis_prop -plot Plot_IdVg -axis y -min 2.97884e-08 -min_fixed
+	set_axis_prop -axis x -title {Gate Voltage [V]} \
+		-title_font_size 16 -label_font_size 14 -type linear
+	set_axis_prop -axis y -title {Drain Current [A/<greek>m</greek>m]} \
+		-title_font_size 16 -label_font_size 14 -type log
+	set_legend_prop -plot Plot_IdVg -label_font_family arial -label_font_size 20 -label_font_color #000000 -label_font_att bold
+	set_legend_prop -plot Plot_IdVg -color_fg #ffffff
+}
+select_plots Plot_IdVg
+#-------------------------------------------------------------------------------
+
+#-------------------------------------------------------------------------------
+# plot simulation
+set Vgs [get_variable_data "gate OuterVoltage" -dataset PLT_Lin($N)]
+set Ids [get_variable_data "drain TotalCurrent" -dataset PLT_Lin($N)]
+ext::AbsList -out absIds -x $Ids
+#Compute absolute value of drain currents
+create_variable -name absId -dataset PLT_Lin($N) -values $absIds
+
+create_curve -name IdVgLin($N) -dataset PLT_Lin($N) \
+	-axisX "gate OuterVoltage" -axisY "absId"
+
+set_curve_prop IdVgLin($N) -label "IdVg" \
+	-line_style solid -line_width 3
+#-------------------------------------------------------------------------------
+
+#-------------------------------------------------------------------------------
+# plot experiment
+set Vgs_exp [get_variable_data "gate InnerVoltage" -dataset PLT_Experiment($N)]
+set Ids_exp [get_variable_data "drain TotalCurrent" -dataset PLT_Experiment($N)]
+ext::AbsList -out absIds_exp -x $Ids_exp
+create_variable -name absId_exp -dataset PLT_Experiment($N) -values $absIds_exp
+
+create_curve -name IdVgExp($N) -dataset PLT_Experiment($N) \
+	-axisX "gate InnerVoltage" -axisY "absId_exp"
+
+set_curve_prop IdVgExp($N) -label "Experiment" \
+	-color blue -line_style dash -line_width 3
+#-------------------------------------------------------------------------------
+#if 0	
+#- Extration
+	ext::ExtractVti -out Vti -name Vti -v $Vgs -i $absIds -io $Io
+	echo "Vti (Vg at Io= [format %.3e $Io] A) is [format %.3f $Vti] V"
+	ext::ExtractVtgm -out Vtgm -name "out" -v $Vgs -i $absIds
+
+	ext::ExtractSsub -out Ssub -name "out" -v $Vgs -i $Ids
+#endif

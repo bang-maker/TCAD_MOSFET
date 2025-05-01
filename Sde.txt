@@ -1,0 +1,65 @@
+(sde:set-process-up-direction "+z")
+(sdegeo:set-default-boolean "ABA")
+
+(define L_Substrate 1.25)
+(define H_Substrate 1)
+(define H_SiO2 0.3)
+(define H_BN1 0.2)
+(define H_MoS2 @Thickness_channel@)
+(define H_BN2 @Thickness_oxide@)
+(define L_gate @Length_channel@)
+(define Half_gate (/ L_gate 2))
+(define center (/ L_Substrate 2))
+
+;---------- structure ----------
+(sdegeo:create-rectangle (position 0 0 0)(position  L_Substrate (* -1 H_Substrate) 0) "Silicon" "R.sub")
+(sdegeo:create-rectangle (position 0 (* -1 H_Substrate) 0)(position  L_Substrate (* -1 (+ H_SiO2 H_Substrate)) 0) "Oxide" "R.ox")
+(sdegeo:create-rectangle (position 0 (* -1 (+ H_SiO2 H_Substrate)) 0)(position L_Substrate (* -1 (+ H_SiO2 H_Substrate H_BN1)) 0) "BN" "B.BN")
+(sdegeo:create-rectangle (position 0 (* -1 (+ H_SiO2 H_Substrate H_BN1)) 0)(position  L_Substrate (* -1 (+ H_SiO2 H_Substrate H_BN1 H_MoS2)) 0) "MoS2" "R.ch")
+(sdegeo:create-rectangle (position (- center Half_gate) (* -1 (+ H_SiO2 H_Substrate H_BN1 H_MoS2)) 0)(position  (+ center Half_gate) (* -1 (+ H_SiO2 H_Substrate H_BN1 H_MoS2 H_BN2)) 0) "@Material_oxide@" "T.BN")
+
+;---------- doping ----------
+(sdedr:define-constant-profile "RF_Sub" "DopingConcentration" -1e16)
+(sdedr:define-constant-profile-region "RP_Sub" "RF_Sub" "R.sub")
+
+(sdedr:define-constant-profile "RF_ch" "DopingConcentration" @Doping@)
+(sdedr:define-constant-profile-region "RP_ch" "RF_ch" "R.ch")
+;---------- meshing ----------
+(sdegeo:set-contact (find-edge-id (position (/ (- center Half_gate) 2) (* -1 (+ H_SiO2 H_Substrate H_BN1 H_MoS2)) 0)) "source")
+(sdegeo:set-contact (find-edge-id (position (- L_Substrate 0.05) (* -1 (+ H_SiO2 H_Substrate H_BN1 H_MoS2)) 0)) "drain")
+(sdegeo:set-contact (find-edge-id (position center (* -1 (+ H_SiO2 H_Substrate H_BN1 H_MoS2 H_BN2)) 0)) "gate")
+;(sdegeo:set-contact (find-edge-id (position 0.6 0 0)) "gate")
+
+;---------- meshing ----------
+(define Xbot 	(sde:max-x (get-body-list)))
+(define Xtop 	(sde:min-x (get-body-list)))
+(define Ybot 	(sde:max-y (get-body-list)))
+(define Ytop 	(sde:min-y (get-body-list)))
+(define dMoS2 	(/ H_MoS2 4))
+
+(sdedr:define-refeval-window "Global_mesh" "Rectangle" (position Xbot Ybot 0) (position Xtop Ytop 0))
+(sdedr:define-refinement-size "GLobal_mesh_Ref_Def" 
+	0.2  0.2  0
+	0.005 0.005 0
+)
+(sdedr:define-refinement-placement "Mesh_glabal" "GLobal_mesh_Ref_Def" "Global_mesh")
+
+(sdedr:define-refinement-size "MoS2_mesh_Ref_Def" 
+	dMoS2  			dMoS2  		0
+	(* dMoS2 0.6) (* dMoS2 0.6) 0
+)
+(sdedr:define-refinement-region "Mesh_MoS2" "MoS2_mesh_Ref_Def" "R.ch")
+
+(sdedr:define-refinement-size "RF.ox"  1e-2  1e-2  1e-3  1e-3  )
+(sdedr:define-refinement-function "RP.ox" "MaxLenInt" "Oxide" "Silicon" 0.001 1.5 "DoubleSide")
+(sdedr:define-refinement-material "RP.ox" "RF.ox" "Oxide" )
+
+(sdedr:define-refinement-size "RF.ch"  1e-2  1e-2  1e-4  1e-4  )
+(sdedr:define-refinement-function "RP.ch" "MaxLenInt" "MoS2" "BN" 0.0001 1.2 "DoubleSide")
+(sdedr:define-refinement-material "RP.ch" "RF.ch" "MoS2" )
+
+(sdedr:define-refinement-size "RF.bn"  1e-2  1e-2  1e-4  1e-4  )
+(sdedr:define-refinement-function "RP.bn" "MaxLenInt" "BN" "MoS2" 0.001 1.5 "DoubleSide")
+(sdedr:define-refinement-material "RP.bn" "RF.bn" "BN" )
+
+(sde:build-mesh "-AI" "n@node@_msh")

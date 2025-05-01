@@ -1,0 +1,110 @@
+File {
+  Grid="@tdr@"
+  Parameter= "@parameter@"
+  Current= "@plot@"
+  Plot= "@tdrdat@"
+  Output= "@log@"
+}
+Electrode {
+  { Name="gate"   Voltage= 0 Schottky Workfunction=4.8 }
+  { Name="drain"  Voltage= 0 Schottky Workfunction=4.3 Resist= 4200}
+  { Name="source" Voltage= 0 Schottky Workfunction=4.3 Resist= 4200}
+}
+
+Physics{
+	Fermi
+	Temperature=300
+	eQuantumPotential 
+	EffectiveIntrinsicDensity(BandGapNarrowing(oldSlotboom))
+	Mobility(
+	  DopingDependence(PhuMob BalMob(Lch= 20))
+	  Enormal(Lombardi InterfaceCharge)
+	  HighFieldSaturation  
+	  Thinlayer
+      )
+  Recombination (
+    SRH  (DopingDependence)
+  #Auger 
+  #Band2Band (model=nonlocalpath)
+  )
+  eBarrierTunneling "SourceNLM"
+  eBarrierTunneling "DrainNLM"
+}
+
+Physics (Region="R.ch") {
+			Traps(
+			(Donor 		Exponential		fromCondBand	Conc=3e20 	EnergyMid=0		EnergySig=0.05)
+			(Donor 		Gaussian		fromMidBandGap	Conc=1e19 	EnergyMid=0.08 	EnergySig=0.08)
+			(Acceptor 	Exponential		fromValBand		Conc=1e20 	EnergyMid=1		EnergySig=0.05)
+			)	
+	}
+Physics (MaterialInterface="MoS2/AluminumOxide" ) { 
+		#-- Fixed charge & shallow acceptor traps @ a-Si/SiNx interface
+		  Traps( 
+			(Donor Exponential fromCondBand Conc=3e13 EnergyMid=0 EnergySig=0.05
+			eXsection=1e-14 hXsection=1e-14 PooleFrenkel)
+			(Donor 		Gaussian		fromCondBand	Conc=1e15 	EnergyMid=0.6 	EnergySig=0.08)
+			(Acceptor 	Exponential		fromValBand		Conc=1e12 	EnergyMid=1		EnergySig=0.05)
+		  )
+		}
+
+Plot {
+  Potential Doping SpaceCharge
+  eDensity hDensity
+  eMobility hMobility
+  ConductionCurrent DisplacementCurrent
+  eCurrent/Vector hCurrent/Vector Current/Vector 
+  CurrentPotential
+  ElectricField/Vector
+  eQuasiFermi hQuasiFermi 
+  BandGap Affinity ConductionBand ValenceBand   
+  SRH eBand2BandGeneration hBand2BandGeneration Band2BandGeneration   	
+  eTrappedCharge hTrappedCharge
+  eInterfaceTrappedCharge hInterfaceTrappedCharge
+  TotalInterfaceTrapConcentration
+  eGapStatesRecombination 	hGapStatesRecombination
+  eBarrierTunneling
+  NonLocal                  
+}
+
+Math {
+	NonLocal "SourceNLM" (
+    Electrode="source"
+	Digits= 5
+	Length= 3e-7
+	EnergyResolution= 1e-3
+    )	
+    
+    NonLocal "DrainNLM"  (
+    Electrode="drain"
+	Digits= 5
+	Length= 3e-7
+	EnergyResolution= 1e-3
+	)
+	
+	Extrapolate
+	Notdamped=50
+	Iterations=50
+    -checkundefinedmodels
+    ExitOnFailure
+    NewtonPlot (Error MinError Residual)
+}
+Solve {
+  Coupled(Iterations= 1000 LinesearchDamping= 1e-2) {Poisson}
+  Coupled(Iterations= 1000 LinesearchDamping= 1e-2) {Poisson Electron eQuantumPotential}
+
+  Quasistationary ( 
+    InitialStep= 1e-9 Increment= 1.41
+    MinStep= 1e-10     MaxStep= 0.02
+    Goal { Name="gate" Voltage= @Vg@ }
+    #Goal { Name="drain" Voltage= 1 }
+  ){ Coupled {  Poisson Hole Electron eQuantumPotential} }
+  
+    NewCurrentFile= "IdVd_"
+
+    Quasistationary ( 
+    InitialStep= 1e-4 Increment= 1.41
+    MinStep= 1e-10     MaxStep= 0.02
+    Goal { Name="drain" Voltage= 3}
+  ){ Coupled {  Poisson Hole Electron eQuantumPotential} }
+}
