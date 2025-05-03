@@ -1,110 +1,80 @@
-File {
-  Grid="@tdr@"
-  Parameter= "@parameter@"
-  Current= "@plot@"
-  Plot= "@tdrdat@"
-  Output= "@log@"
-}
-Electrode {
-  { Name="gate"   Voltage= 0 Schottky Workfunction=4.8 }
-  { Name="drain"  Voltage= 0 Schottky Workfunction=4.3 Resist= 4200}
-  { Name="source" Voltage= 0 Schottky Workfunction=4.3 Resist= 4200}
-}
+#setdep @previous@
 
-Physics{
-	Fermi
-	Temperature=300
-	eQuantumPotential 
-	EffectiveIntrinsicDensity(BandGapNarrowing(oldSlotboom))
-	Mobility(
-	  DopingDependence(PhuMob BalMob(Lch= 20))
-	  Enormal(Lombardi InterfaceCharge)
-	  HighFieldSaturation  
-	  Thinlayer
-      )
-  Recombination (
-    SRH  (DopingDependence)
-  #Auger 
-  #Band2Band (model=nonlocalpath)
-  )
-  eBarrierTunneling "SourceNLM"
-  eBarrierTunneling "DrainNLM"
-}
+#-----------------------------------------
+load_library extract
+lib::SetInfoDef 1
+#turn on the extended information mode to utilize more data
+#------------------------------------------
 
-Physics (Region="R.ch") {
-			Traps(
-			(Donor 		Exponential		fromCondBand	Conc=3e20 	EnergyMid=0		EnergySig=0.05)
-			(Donor 		Gaussian		fromMidBandGap	Conc=1e19 	EnergyMid=0.08 	EnergySig=0.08)
-			(Acceptor 	Exponential		fromValBand		Conc=1e20 	EnergyMid=1		EnergySig=0.05)
-			)	
-	}
-Physics (MaterialInterface="MoS2/AluminumOxide" ) { 
-		#-- Fixed charge & shallow acceptor traps @ a-Si/SiNx interface
-		  Traps( 
-			(Donor Exponential fromCondBand Conc=3e13 EnergyMid=0 EnergySig=0.05
-			eXsection=1e-14 hXsection=1e-14 PooleFrenkel)
-			(Donor 		Gaussian		fromCondBand	Conc=1e15 	EnergyMid=0.6 	EnergySig=0.08)
-			(Acceptor 	Exponential		fromValBand		Conc=1e12 	EnergyMid=1		EnergySig=0.05)
-		  )
-		}
+set	N	@node@
+set Io	[expr 1e-10]
 
-Plot {
-  Potential Doping SpaceCharge
-  eDensity hDensity
-  eMobility hMobility
-  ConductionCurrent DisplacementCurrent
-  eCurrent/Vector hCurrent/Vector Current/Vector 
-  CurrentPotential
-  ElectricField/Vector
-  eQuasiFermi hQuasiFermi 
-  BandGap Affinity ConductionBand ValenceBand   
-  SRH eBand2BandGeneration hBand2BandGeneration Band2BandGeneration   	
-  eTrappedCharge hTrappedCharge
-  eInterfaceTrappedCharge hInterfaceTrappedCharge
-  TotalInterfaceTrapConcentration
-  eGapStatesRecombination 	hGapStatesRecombination
-  eBarrierTunneling
-  NonLocal                  
-}
+#-----------------------------------------------------------
+# load data
+load_file IdVg_@plot@ -name PLT_Lin($N)
+load_file experimental.plt -name PLT_Experiment($N)
+#--------------------------------------------------------------
 
-Math {
-	NonLocal "SourceNLM" (
-    Electrode="source"
-	Digits= 5
-	Length= 3e-7
-	EnergyResolution= 1e-3
-    )	
-    
-    NonLocal "DrainNLM"  (
-    Electrode="drain"
-	Digits= 5
-	Length= 3e-7
-	EnergyResolution= 1e-3
-	)
+#-------------------------------------------------------------------------------
+# canvas setting
+if {[lsearch [list_plots] Plot_IdVg] == -1} {
+	create_plot -1d -name Plot_IdVg
+	set_plot_prop -title "I<sub>d</sub>-V<sub>gs</sub> Curve" -title_font_size 20
 	
-	Extrapolate
-	Notdamped=50
-	Iterations=50
-    -checkundefinedmodels
-    ExitOnFailure
-    NewtonPlot (Error MinError Residual)
+	set_axis_prop -plot Plot_IdVg -axis x -min -3 -min_fixed
+	set_axis_prop -plot Plot_IdVg -axis x -max 4 -max_fixed
+	set_axis_prop -plot Plot_IdVg -axis y -min 2.97884e-11 -min_fixed
+	set_axis_prop -axis x -title {Gate Voltage [V]} \
+		-title_font_size 16 -label_font_size 14 -type linear
+	set_axis_prop -axis y -title {Drain Current [A/<greek>m</greek>m]} \
+		-title_font_size 16 -label_font_size 14 -type log
+	set_legend_prop -plot Plot_IdVg -label_font_family arial -label_font_size 20 -label_font_color #000000 -label_font_att bold
+	set_legend_prop -plot Plot_IdVg -color_fg #ffffff
 }
-Solve {
-  Coupled(Iterations= 1000 LinesearchDamping= 1e-2) {Poisson}
-  Coupled(Iterations= 1000 LinesearchDamping= 1e-2) {Poisson Electron eQuantumPotential}
+select_plots Plot_IdVg
+#-------------------------------------------------------------------------------
 
-  Quasistationary ( 
-    InitialStep= 1e-9 Increment= 1.41
-    MinStep= 1e-10     MaxStep= 0.02
-    Goal { Name="gate" Voltage= @Vg@ }
-    #Goal { Name="drain" Voltage= 1 }
-  ){ Coupled {  Poisson Hole Electron eQuantumPotential} }
-  
-    NewCurrentFile= "IdVd_"
+#-------------------------------------------------------------------------------
+# plot simulation
+set Vgs [get_variable_data "gate OuterVoltage" -dataset PLT_Lin($N)]
+set Ids [get_variable_data "drain TotalCurrent" -dataset PLT_Lin($N)]
+ext::AbsList -out absIds -x $Ids
+#Compute absolute value of drain currents
+create_variable -name absId -dataset PLT_Lin($N) -values $absIds
 
-    Quasistationary ( 
-    InitialStep= 1e-4 Increment= 1.41
-    MinStep= 1e-10     MaxStep= 0.02
-    Goal { Name="drain" Voltage= 3}
-  ){ Coupled {  Poisson Hole Electron eQuantumPotential} }
-}
+create_curve -name IdVgLin($N) -dataset PLT_Lin($N) \
+	-axisX "gate OuterVoltage" -axisY "absId"
+
+set_curve_prop IdVgLin($N) -label "IdVg" \
+	-line_style solid -line_width 3
+#-------------------------------------------------------------------------------
+
+#-------------------------------------------------------------------------------
+# plot experiment
+set Vgs_exp [get_variable_data "gate InnerVoltage" -dataset PLT_Experiment($N)]
+set Ids_exp [get_variable_data "drain TotalCurrent" -dataset PLT_Experiment($N)]
+set Vgo 1e-1
+ext::AbsList -out absIds_exp -x $Ids_exp
+create_variable -name absId_exp -dataset PLT_Experiment($N) -values $absIds_exp
+
+create_curve -name IdVgExp($N) -dataset PLT_Experiment($N) \
+	-axisX "gate InnerVoltage" -axisY "absId_exp"
+
+set_curve_prop IdVgExp($N) -label "Experiment" \
+	-color blue -line_style dash -line_width 3
+#-------------------------------------------------------------------------------
+#- Extration
+	ext::ExtractVti -out Vti -name Vti -v $Vgs -i $absIds -io $Io
+	echo "Vti (Vg at Io= [format %.3e $Io] A) is [format %.3f $Vti] V"
+	
+	ext::ExtractVtgm -out Vtgm -name "out" -v $Vgs -i $absIds
+	ext::ExtractGm -out gmLin -name "out" -v $Vgs -i $absIds
+	puts "Max gm: [format %.3e $gmLin] S/um"
+	
+	ext::ExtractValue -out Ion -name "out" -x $Vgs -y $absIds -yLog 1 -xo 5
+	ext::ExtractIoff -out Ioff -name "out" -v $Vgs -i $absIds -vo -3
+	set Iratio [expr $Ion/$Ioff]
+	puts "DOE: Iratio [format %.3e $Iratio]"
+
+	ext::ExtractSsub -out Ssub -name "out" -v $Vgs -i $Ids
+	ext::ExtractSS -out SSlin -name "out" -v $Vgs -i $Ids -vo $Vgo
