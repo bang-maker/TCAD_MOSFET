@@ -135,20 +135,19 @@ Solve {
 		  ){ Coupled {  Poisson Electron Hole eQuantumPotential} }
 	#endif
 		
-	NewCurrentFile= "IdVg_"
 	  Quasistationary ( 
 		InitialStep= 1e-4 Increment= 1.41
 		MinStep= 1e-10     MaxStep= 0.02
 		Goal { Name="gate" Voltage= @Start_Vg@ }
 	  ){ Coupled {  Poisson Electron Hole eQuantumPotential} }
 
-	  
+	NewCurrentFile= "IdVg_"
 
     Quasistationary (
     	DoZero
 		InitialStep= 1e-4 Increment= 1.41
 		MinStep= 1e-10     MaxStep= 0.02
-		Goal { Name="gate" Voltage= 4}
+		Goal { Name="gate" Voltage= 5}
 	  ){ Coupled {  Poisson Electron Hole eQuantumPotential} }
 }
 
